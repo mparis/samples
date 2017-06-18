@@ -136,6 +136,7 @@ function onCreateSessionDescriptionError(error) {
 
 function onCreateOfferSuccess(desc) {
   trace('Offer from pc1\n' + desc.sdp);
+  desc.sdp = removeTransportCC (desc.sdp);
   trace('pc1 setLocalDescription start');
   pc1.setLocalDescription(desc).then(
     function() {
@@ -181,6 +182,7 @@ function gotRemoteStream(e) {
 
 function onCreateAnswerSuccess(desc) {
   trace('Answer from pc2:\n' + desc.sdp);
+  desc.sdp = removeTransportCC (desc.sdp);
   trace('pc2 setLocalDescription start');
   pc2.setLocalDescription(desc).then(
     function() {
@@ -234,4 +236,13 @@ function hangup() {
   pc2 = null;
   hangupButton.disabled = true;
   callButton.disabled = false;
+}
+
+function removeTransportCC(sdp) {
+  trace("Removing transport-cc");
+
+  var ret = sdp.replace(new RegExp("a=rtcp-fb:(.*) transport-cc\r\n", 'g'), "");
+  ret = ret.replace(new RegExp("a=extmap:(.*) http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01\r\n",'g'),"");
+
+  return ret;
 }
