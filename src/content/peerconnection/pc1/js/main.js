@@ -137,6 +137,7 @@ function onCreateSessionDescriptionError(error) {
 function onCreateOfferSuccess(desc) {
   trace('Offer from pc1\n' + desc.sdp);
   desc.sdp = removeTransportCC (desc.sdp);
+  desc.sdp = setMinVideoBitrate (desc.sdp, 1000);
   trace('pc1 setLocalDescription start');
   pc1.setLocalDescription(desc).then(
     function() {
@@ -183,6 +184,7 @@ function gotRemoteStream(e) {
 function onCreateAnswerSuccess(desc) {
   trace('Answer from pc2:\n' + desc.sdp);
   desc.sdp = removeTransportCC (desc.sdp);
+  desc.sdp = setMinVideoBitrate (desc.sdp, 1000);
   trace('pc2 setLocalDescription start');
   pc2.setLocalDescription(desc).then(
     function() {
@@ -243,6 +245,28 @@ function removeTransportCC(sdp) {
 
   var ret = sdp.replace(new RegExp("a=rtcp-fb:(.*) transport-cc\r\n", 'g'), "");
   ret = ret.replace(new RegExp("a=extmap:(.*) http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01\r\n",'g'),"");
+
+  return ret;
+}
+
+function setMinVideoBitrate(sdp, bitrate) {
+  var ret = sdp;
+
+  trace("Setting fix min video bitrate to " + bitrate);
+
+  /* Chrome seems not to properly work for H264 */
+  var codecs = ["VP8", "H264"];
+  for (var i = 0; i < codecs.length; i++) {
+    var codec = codecs[i];
+    var rtpmap = ret.match("a=rtpmap:(.*) " + codec + "/90000\r\n");
+    if (rtpmap != null) {
+      var pt = rtpmap[1];
+      var regReplaceId = new RegExp("a=rtpmap:" + pt + " " + codec + "/90000\r\n", 'g');
+      ret = ret.replace(regReplaceId, "a=rtpmap:" + pt + " " + codec + "/90000\r\n" +
+                                      "a=fmtp:" + pt + " x-google-min-bitrate=" + bitrate + "\r\n");
+
+    }
+  }
 
   return ret;
 }
