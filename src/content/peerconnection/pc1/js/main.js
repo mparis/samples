@@ -244,5 +244,74 @@ function removeTransportCC(sdp) {
   var ret = sdp.replace(new RegExp("a=rtcp-fb:(.*) transport-cc\r\n", 'g'), "");
   ret = ret.replace(new RegExp("a=extmap:(.*) http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01\r\n",'g'),"");
 
+  ret = manglePrefCodec (ret, "VP8", true);
+
   return ret;
+}
+
+function manglePrefCodec(sdp, prefCodec, removeNoPreferableCodecs) {
+  if (prefCodec === "" || prefCodec === undefined) {
+    return sdp;
+  }
+
+  var rtpmap = sdp.match("a=rtpmap:(.*) " + prefCodec + "(.*)\r\n");
+  if (rtpmap == null) {
+    console.warn("Codec " + prefCodec + " not supported");
+    return sdp;
+  }
+
+  var pt = rtpmap[1];
+
+  var pts = [];
+  var ptsOtherCodecs = []
+
+  var ptsNumbers = sdp.match(
+      "m=(?:.*) UDP/TLS/RTP/SAVPF(.*?) " + pt + "(.*?)*")[0].split("UDP/TLS/RTP/SAVPF ")[1]
+      .split(" ");
+
+  ptsNumbers.forEach(function (ptNum) {
+    var lineOfPt = sdp.match("a=rtpmap:" + ptNum + " (.*)\r\n")
+    if (lineOfPt != null && lineOfPt[0].indexOf(prefCodec) == -1) {
+      ptsOtherCodecs.push(ptNum);
+    } else {
+      pts.push(ptNum);
+    }
+  });
+
+  if (removeNoPreferableCodecs) {
+    ptsOtherCodecs.forEach(function (pt) {
+        sdp = removePTsAttrs(sdp, pt);
+    });
+
+    sdp =
+        sdp.replace(new RegExp("m=(.*) UDP/TLS/RTP/SAVPF(.*) " + pts.toString()
+                            .replace(new RegExp(',', 'g'), ".*.") + "(.*)\r\n", 'g'),
+                    "m=$1 UDP/TLS/RTP/SAVPF " + pts.toString().replace(new RegExp(',', 'g'), " ")
+                      + "\r\n");
+  } else {
+    sdp = sdp.replace(new RegExp("m=(.*) UDP/TLS/RTP/SAVPF(.*) " + pt + "(.*)\r\n", 'g'),
+                      "m=$1 UDP/TLS/RTP/SAVPF " + pts.toString()
+                          .replace(new RegExp(',', 'g'), " ") + " " + ptsOtherCodecs.toString()
+                          .replace(new RegExp(',', 'g'), " ") + "\r\n");
+  }
+
+  console.log("Set " + prefCodec + " with PTs " + pts + " as preferable codec.");
+
+  return sdp;
+}
+
+function removePTsAttrs(sdp, PTs) {
+  if (PTs == null || PTs === "") {
+    return sdp;
+  }
+
+  var pts_array = PTs.trim().split(" ");
+  for (var i = 0; i < pts_array.length; i++) {
+    var pt = pts_array[i];
+    sdp = sdp.replace(new RegExp("a=rtpmap:" + pt + " (.*)\r\n", 'g'), "");
+    sdp = sdp.replace(new RegExp("a=rtcp-fb:" + pt + " (.*)\r\n", 'g'), "");
+    sdp = sdp.replace(new RegExp("a=fmtp:" + pt + " (.*)\r\n", 'g'), "");
+  }
+
+  return sdp;
 }
